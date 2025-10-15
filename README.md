@@ -1,6 +1,6 @@
 # Sho-PS Corporate Site Clone
 
-Next.js (App Router) + TypeScript + Tailwind CSS template that reproduces the PC view of the Sho-PS corporate site top page. The hero slider is implemented with the React version of Splide and references the original asset paths under `/assets/...`.
+Next.js (App Router) + TypeScript + Tailwind CSS template that reproduces the PC view of the Sho-PS corporate site top page. The hero slider is implemented with Swiper (React) and references the original asset paths under `/assets/...`.
 
 ## Getting Started
 
@@ -29,7 +29,7 @@ Next.js (App Router) + TypeScript + Tailwind CSS template that reproduces the PC
 
 ```
 app/                 # App Router entry (layout, top page)
-components/sho-ps/   # Header, home sections, footer
+components/sho-ps/   # Hero header, home sections, footer
 public/assets/       # Place images and other static files here following the original paths
 ```
 
@@ -37,4 +37,4 @@ public/assets/       # Place images and other static files here following the or
 
 - Remote images served from `www.sho-ps.co.jp` are allowed through the Next.js image configuration in `next.config.mjs`.
 - Tailwind utility classes are configured in `tailwind.config.ts`, including brand colors and shared card styles.
-- The Splide CSS is imported globally from `app/globals.css`.
+- The Swiper CSS is imported globally from `app/globals.css`.

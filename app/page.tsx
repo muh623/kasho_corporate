@@ -1,12 +1,12 @@
-import ShoPSHeader from '@/components/sho-ps/ShoPSHeader'
+import HeroHeader from '@/components/sho-ps/HeroHeader'
 import ShoPSHome from '@/components/sho-ps/ShoPSHome'
 import ShoPSFooter from '@/components/sho-ps/ShoPSFooter'
 
 export default function Page() {
   return (
     <>
-      <ShoPSHeader />
-      <main className="l-main -top">
+      <main>
+        <HeroHeader />
         <ShoPSHome />
       </main>
       <ShoPSFooter />

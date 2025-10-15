@@ -2,8 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Splide のCSS */
-@import "@splidejs/react-splide/css";
+/* Swiper の最小限のスタイル */
+@import "swiper/css";
+@import "swiper/css/effect-fade";
 
 /* 縦書きユーティリティ */
 .v-rl { writing-mode: vertical-rl; text-orientation: mixed; }

@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Splide のCSS */
+@import "@splidejs/react-splide/css";
+
+/* 縦書きユーティリティ */
+.v-rl { writing-mode: vertical-rl; text-orientation: mixed; }
+
+/* 共通カード */
+.card { @apply rounded-[22px] ring-1 ring-neutral-200 bg-white; }
+
+/* PCの基準幅 */
+:root { --content-w: 1320px; }

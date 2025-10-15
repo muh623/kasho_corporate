@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "@splidejs/react-splide/css";
+
+:root {
+  --content-w: 1320px;
+}
+
+@layer utilities {
+  .v-rl {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+}
+

@@ -1,74 +1,93 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Swiper as SwiperClass } from "swiper";
+import { Autoplay, EffectFade } from "swiper/modules";
+import { Swiper, SwiperSlide } from "swiper/react";
+
+import "swiper/css";
+import "swiper/css/effect-fade";
 
 const CONTAINER_MAX_W = 1320;
 const SIDE_W = 260;
 const RIGHT_W = 120;
 const GAP = 28;
 const HERO_IMG_H = 520;
-const BOTTOM_BAR_H = 120;
-const HERO_TOTAL_H = HERO_IMG_H + BOTTOM_BAR_H;
+const HERO_TOTAL_H = HERO_IMG_H + 160;
 const AUTOPLAY_MS = 3600;
 
 type Slide = {
   key: string;
   title: string;
-  sub1: string;
-  sub2: string;
+  caption: string;
+  badge: string;
+  tagline: string;
+  highlight: string;
   image: string;
+  thumbnail: string;
 };
 
 const SLIDES: Slide[] = [
   {
-    key: "think",
-    title: "考える",
-    sub1: "最適な提案を",
-    sub2: "本と売り場に",
-    image: "/hero-think.svg",
+    key: "sales-1",
+    title: "営業一課",
+    caption: "営業一課／鈴木",
+    badge: "取引先と共に",
+    tagline: "現場に寄り添う提案力",
+    highlight: "営業の力",
+    image: "/images/hero/slide-01.jpg",
+    thumbnail: "/images/hero/thumb-01.jpg",
   },
   {
-    key: "link",
-    title: "繋げる",
-    sub1: "輝くように",
-    sub2: "本の魅力が",
-    image: "/hero-link.svg",
+    key: "sales-2",
+    title: "営業二課",
+    caption: "営業二課／佐藤",
+    badge: "本と読者を繋ぐ",
+    tagline: "新たな出逢いをつくる",
+    highlight: "連携の力",
+    image: "/images/hero/slide-02.jpg",
+    thumbnail: "/images/hero/thumb-02.jpg",
   },
   {
-    key: "deliver",
-    title: "届ける",
-    sub1: "本をお客様に",
-    sub2: "書店様に想いを",
-    image: "/hero-deliver.svg",
+    key: "marketing",
+    title: "販促企画",
+    caption: "販促企画／高橋",
+    badge: "街に届ける",
+    tagline: "魅力を最前線へ",
+    highlight: "企画の力",
+    image: "/images/hero/slide-03.jpg",
+    thumbnail: "/images/hero/thumb-03.jpg",
   },
   {
-    key: "visit",
-    title: "訪ねる",
-    sub1: "信頼関係と",
-    sub2: "新たな発見のために",
-    image: "/hero-visit.svg",
+    key: "digital",
+    title: "デジタル推進",
+    caption: "デジタル推進／伊藤",
+    badge: "データで支える",
+    tagline: "次の一手を見抜く",
+    highlight: "分析の力",
+    image: "/images/hero/slide-04.jpg",
+    thumbnail: "/images/hero/thumb-04.jpg",
   },
   {
-    key: "research",
-    title: "調べる",
-    sub1: "最大限の効果を",
-    sub2: "生むために",
-    image: "/hero-research.svg",
+    key: "logistics",
+    title: "物流管理",
+    caption: "物流管理／中村",
+    badge: "全国の書店へ",
+    tagline: "確かな届け方で",
+    highlight: "物流の力",
+    image: "/images/hero/slide-05.jpg",
+    thumbnail: "/images/hero/thumb-05.jpg",
   },
   {
-    key: "find",
-    title: "見出す",
-    sub1: "声に耳を傾け",
-    sub2: "確かな知見で",
-    image: "/hero-find.svg",
-  },
-  {
-    key: "tell",
-    title: "伝える",
-    sub1: "書店様と",
-    sub2: "作り手の架け橋として",
-    image: "/hero-tell.svg",
+    key: "support",
+    title: "管理部門",
+    caption: "管理部門／小林",
+    badge: "挑戦を支える",
+    tagline: "働きやすさを磨く",
+    highlight: "サポートの力",
+    image: "/images/hero/slide-06.jpg",
+    thumbnail: "/images/hero/thumb-06.jpg",
   },
 ];
 
@@ -85,11 +104,15 @@ function ArrowDot({ className = "" }: { className?: string }) {
 
 function Thumb({
   label,
+  caption,
+  index,
   active,
   onClick,
   image,
 }: {
   label: string;
+  caption: string;
+  index: number;
   active: boolean;
   onClick: () => void;
   image: string;
@@ -97,34 +120,45 @@ function Thumb({
   return (
     <button
       onClick={onClick}
-      className="group w-[120px] text-left"
+      className={`group flex w-full flex-col items-center text-left transition ${active ? "opacity-100" : "opacity-80 hover:opacity-100"}`}
       aria-pressed={active}
       type="button"
     >
-      <div className="relative h-[72px] overflow-hidden rounded-md ring-1 ring-black/5">
+      <div className={`relative h-[84px] w-full overflow-hidden rounded-[14px] ring-1 ${active ? "ring-brand-green" : "ring-neutral-200"}`}>
         <Image
           src={image}
           alt=""
           fill
           sizes="120px"
-          className={`object-cover transition-opacity duration-300 ${active ? "" : "opacity-90 group-hover:opacity-100"}`}
+          className="object-cover"
         />
       </div>
-      <div className={`mt-2 text-center text-[12px] transition ${active ? "text-brand-green" : "text-neutral-500 group-hover:text-neutral-700"}`}>
-        {label}
+      <div className="mt-3 flex flex-col items-center gap-1 text-center">
+        <span className={`text-[11px] font-semibold tracking-[0.32em] ${active ? "text-brand-green" : "text-neutral-400"}`}>
+          {index < 9 ? `0${index + 1}` : index + 1}
+        </span>
+        <span className={`text-[13px] font-medium tracking-[0.08em] ${active ? "text-neutral-900" : "text-neutral-600"}`}>
+          {label}
+        </span>
+        <span className="text-[11px] text-neutral-400">{caption}</span>
       </div>
     </button>
   );
 }
 
 export default function Hero() {
-  const [index, setIndex] = useState(2);
+  const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const swiperRef = useRef<SwiperClass>();
 
   useEffect(() => {
-    if (!playing) return;
-    const id = window.setInterval(() => setIndex((i) => (i + 1) % SLIDES.length), AUTOPLAY_MS);
-    return () => window.clearInterval(id);
+    const instance = swiperRef.current;
+    if (!instance) return;
+    if (playing) {
+      instance.autoplay.start();
+    } else {
+      instance.autoplay.stop();
+    }
   }, [playing]);
 
   const current = useMemo(() => SLIDES[index], [index]);
@@ -193,67 +227,70 @@ export default function Hero() {
         </aside>
 
         <div className="pt-8">
-          <div className="relative w-full rounded-[22px] bg-white ring-1 ring-neutral-200">
-            <div className="relative overflow-hidden rounded-t-[22px]" style={{ height: HERO_IMG_H }}>
-              {SLIDES.map((slide, i) => (
-                <div
-                  key={slide.key}
-                  className={`absolute inset-0 transition-opacity duration-700 ${i === index ? "opacity-100" : "opacity-0"}`}
-                  aria-hidden={i !== index}
-                >
-                  <Image
-                    src={slide.image}
-                    alt=""
-                    fill
-                    sizes="(min-width:1280px) 820px, 100vw"
-                    priority={i === 2}
-                    className="object-cover"
-                  />
-
-                  <div className="absolute left-8 top-8 flex items-start gap-2">
-                    <div className="flex gap-2">
-                      <span className="inline-block rounded-[4px] bg-white/95 px-2 py-1 text-[13px] leading-none text-neutral-900 shadow-sm [writing-mode:vertical-rl] [text-orientation:mixed]">
-                        {slide.sub1}
-                      </span>
-                      <span className="inline-block rounded-[4px] bg-white/95 px-2 py-1 text-[13px] leading-none text-neutral-900 shadow-sm [writing-mode:vertical-rl] [text-orientation:mixed]">
-                        {slide.sub2}
-                      </span>
+          <div className="relative w-full overflow-hidden rounded-[24px] bg-white shadow-[0px_30px_50px_rgba(20,20,20,0.08)] ring-1 ring-neutral-200/80">
+            <div className="relative overflow-hidden" style={{ height: HERO_IMG_H }}>
+              <Swiper
+                modules={[Autoplay, EffectFade]}
+                effect="fade"
+                fadeEffect={{ crossFade: true }}
+                loop
+                autoplay={{ delay: AUTOPLAY_MS, disableOnInteraction: false }}
+                onSwiper={(instance) => {
+                  swiperRef.current = instance;
+                }}
+                onSlideChange={(instance) => {
+                  setIndex(instance.realIndex);
+                }}
+                className="h-full"
+              >
+                {SLIDES.map((slide) => (
+                  <SwiperSlide key={slide.key}>
+                    <div className="relative h-full w-full">
+                      <Image
+                        src={slide.image}
+                        alt=""
+                        fill
+                        sizes="(min-width:1280px) 820px, 100vw"
+                        priority={slide.key === SLIDES[0].key}
+                        className="object-cover"
+                      />
+                      <div className="absolute left-8 top-8 flex items-start gap-3">
+                        <div className="flex gap-2">
+                          <span className="inline-block rounded-[6px] bg-neutral-900/95 px-2 py-2 text-[13px] font-medium leading-none text-white shadow-sm [writing-mode:vertical-rl] [text-orientation:mixed]">
+                            {slide.badge}
+                          </span>
+                          <span className="inline-block rounded-[6px] bg-white/90 px-2 py-2 text-[13px] leading-tight text-neutral-900 shadow-sm [writing-mode:vertical-rl] [text-orientation:mixed]">
+                            {slide.tagline}
+                          </span>
+                        </div>
+                        <span className="inline-block rounded-[6px] bg-brand-green/95 px-2 py-2 text-[18px] font-medium leading-none text-white shadow-sm [writing-mode:vertical-rl] [text-orientation:mixed]">
+                          {slide.highlight}
+                        </span>
+                      </div>
                     </div>
-                    <span className="inline-block rounded-[4px] bg-neutral-900 px-2 py-1 text-[18px] font-medium leading-none text-white [writing-mode:vertical-rl] [text-orientation:mixed]">
-                      {slide.title}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                  </SwiperSlide>
+                ))}
+              </Swiper>
             </div>
 
-            <div className="flex items-end justify-between px-6 py-5" style={{ minHeight: BOTTOM_BAR_H }}>
-              <div className="flex gap-4">
-                {([6, 0, 1] as const).map((idx) => (
+            <div className="border-t border-neutral-200 bg-white px-6 py-6">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                {SLIDES.map((slide, idx) => (
                   <Thumb
-                    key={SLIDES[idx].key}
-                    label={SLIDES[idx].title}
+                    key={slide.key}
+                    label={slide.title}
+                    caption={slide.caption}
+                    index={idx}
                     active={index === idx}
-                    onClick={() => setIndex(idx)}
-                    image={SLIDES[idx].image}
-                  />
-                ))}
-              </div>
-              <div className="flex gap-4">
-                {([3, 4, 5] as const).map((idx) => (
-                  <Thumb
-                    key={SLIDES[idx].key}
-                    label={SLIDES[idx].title}
-                    active={index === idx}
-                    onClick={() => setIndex(idx)}
-                    image={SLIDES[idx].image}
+                    onClick={() => swiperRef.current?.slideToLoop(idx)}
+                    image={slide.thumbnail}
                   />
                 ))}
               </div>
             </div>
 
             <span className="sr-only" aria-live="polite">
-              {current.title}、{current.sub1}、{current.sub2}
+              {`${current.title}、${current.badge}、${current.tagline}`}
             </span>
           </div>
         </div>
@@ -265,14 +302,18 @@ export default function Hero() {
             <span className="mt-4 inline-block text-brand-green">共に創る。</span>
           </div>
 
-          <div className="absolute bottom-5 right-0">
+          <div className="absolute bottom-5 right-0 flex flex-col items-center gap-4">
+            <div className="flex items-center gap-3 [writing-mode:vertical-rl] [text-orientation:mixed]">
+              <span className="rounded-full bg-neutral-900 px-3 py-2 text-[12px] font-medium leading-none text-white">最新情報を届ける</span>
+              <span className="rounded-full bg-white px-3 py-2 text-[12px] leading-none text-neutral-700 shadow ring-1 ring-neutral-200">現場の声から</span>
+            </div>
             <button
               onClick={() => setPlaying((p) => !p)}
-              className="flex items-center gap-2 rounded-md bg-white px-3 py-2 text-[13px] shadow ring-1 ring-neutral-200 transition hover:bg-white/90"
+              className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[13px] shadow ring-1 ring-neutral-200 transition hover:bg-white/90"
               aria-pressed={!playing}
               type="button"
             >
-              <span className="inline-block w-3 text-center">{playing ? "‖" : "▶"}</span>
+              <span className="inline-block w-4 text-center">{playing ? "‖" : "▶"}</span>
               <span>{playing ? "一時停止" : "再生"}</span>
             </button>
           </div>

@@ -1,251 +1,330 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import Image from "next/image";
+import {
+  CSSProperties,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
-/** ===== 調整用（px） ===== */
-const CONTAINER_MAX_W = 1320  // 全体横幅（PC）
-const SIDE_W = 260            // 左サイド幅
-const RIGHT_W = 120           // 右カラム幅（縦コピー+ボタン）
-const GAP = 28                // カラム間余白
+type Slide = { id: number; src: string; alt: string; label?: string };
 
-// 赤枠の二段構成：上がメイン画像、下がサムネ行
-const HERO_IMG_H = 520        // 上段：メイン画像の高さ（重なりなし）
-const BOTTOM_BAR_H = 120      // 下段：サムネ行の高さ（パディング含む目安）
-const HERO_TOTAL_H = HERO_IMG_H + BOTTOM_BAR_H
-
-const AUTOPLAY_MS = 2800
-
-type Slide = { key: string; title: string; sub1: string; sub2: string }
+// /public/slides に配置。前半=左サムネ、後半=右サムネ。
 const SLIDES: Slide[] = [
-  { key: 'think',   title: '考える', sub1: '最適な提案を',   sub2: '本と売り場に' },
-  { key: 'link',    title: '繋げる', sub1: '輝くように',     sub2: '本の魅力が' }, // ←縦書き順に合わせて語順調整
-  { key: 'deliver', title: '届ける', sub1: '本をお客様に',   sub2: '書店様に想いを' },
-  { key: 'visit',   title: '訪ねる', sub1: '信頼関係と',     sub2: '新たな発見のために' },
-  { key: 'research',title: '調べる', sub1: '最大限の効果を', sub2: '生むために' },
-  { key: 'find',    title: '見出す', sub1: '声に耳を傾け',   sub2: '確かな知見で' },
-  { key: 'tell',    title: '伝える', sub1: '書店様と',       sub2: '作り手の架け橋として' },
-]
+  { id: 1, src: "/slider/01.jpg", alt: "Slide 01", label: "調べる" },
+  { id: 2, src: "/slider/06.jpg", alt: "Slide 02", label: "見出す" },
+  { id: 3, src: "/slider/01.jpg", alt: "Slide 03", label: "伝える" },
+  { id: 4, src: "/slider/06.jpg", alt: "Slide 04", label: "考える" },
+  { id: 5, src: "/slider/01.jpg", alt: "Slide 05", label: "届ける" },
+  { id: 6, src: "/slider/06.jpg", alt: "Slide 06", label: "創る" },
+];
 
-/** 小さな緑丸（>） */
-function ArrowDot({ className = '' }: { className?: string }) {
-  return (
-    <span
-      className={
-        'inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[12px] leading-none ' +
-        className
-      }
-      aria-hidden
-    >
-      ›
-    </span>
-  )
+/* ----------------------------- 小さなユーティリティ ----------------------------- */
+
+/** 自動再生（有効時のみ進める） */
+function useAutoAdvance(
+  enabled: boolean,
+  total: number,
+  setIndex: React.Dispatch<React.SetStateAction<number>>,
+  ms = 6000
+) {
+  useEffect(() => {
+    if (!enabled || total <= 1) return;
+    const t = window.setInterval(() => setIndex((i) => (i + 1) % total), ms);
+    return () => clearInterval(t);
+  }, [enabled, total, ms, setIndex]);
 }
 
-/** サムネ（赤枠の“下段”に表示。メイン画像と非重なり） */
-function Thumb({
-  label,
-  active,
-  onClick,
-}: {
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button onClick={onClick} className="group w-[120px] text-left" aria-pressed={active}>
-      <div className="relative h-[72px] overflow-hidden rounded-md ring-1 ring-black/5">
-        <Image
-          src="/sample.webp"
-          alt=""
-          fill
-          sizes="120px"
-          className={`object-cover transition-opacity ${active ? '' : 'opacity-90 group-hover:opacity-100'}`}
-        />
-      </div>
-      <div className="mt-2 text-center text-[12px] text-neutral-500 group-hover:text-neutral-700">
-        {label}
-      </div>
-    </button>
-  )
-}
+/**
+ * 中央（②）の高さ=左スタック(①+④)の高さ。
+ * 縦位置=左右スタック(①+④ / ③+⑤)の“中点”に中央が来るよう marginTop を算出。
+ * ※ レスポンシブ判定は一切行わない（常に計測）。
+ */
+function useCenteredStyle(
+  leftRef: React.RefObject<HTMLDivElement>,
+  rightRef: React.RefObject<HTMLDivElement>,
+  containerRef: React.RefObject<HTMLDivElement>
+) {
+  const [style, setStyle] = useState<CSSProperties | undefined>();
 
-export default function ShoPSFirstView() {
-  // 例に合わせて「届ける」から開始
-  const [index, setIndex] = useState(2)
-  const [playing, setPlaying] = useState(true)
+  const measure = useCallback(() => {
+    const left = leftRef.current;
+    const right = rightRef.current;
+    const container = containerRef.current;
+    if (!left || !right || !container) return;
+
+    const L = left.getBoundingClientRect();
+    const R = right.getBoundingClientRect();
+    const C = container.getBoundingClientRect();
+
+    const h = Math.round(L.height);
+    const groupTop = Math.min(L.top, R.top);
+    const groupBottom = Math.max(L.bottom, R.bottom);
+    const mid = (groupTop + groupBottom) / 2;
+
+    const desiredTop = mid - h / 2;
+    const offset = Math.round(desiredTop - C.top);
+    const maxOffset = Math.max(0, Math.round(C.height - h));
+    const marginTop = Math.min(Math.max(0, offset), maxOffset);
+
+    setStyle({ height: h, marginTop });
+  }, [leftRef, rightRef, containerRef]);
 
   useEffect(() => {
-    if (!playing) return
-    const id = setInterval(() => setIndex((i) => (i + 1) % SLIDES.length), AUTOPLAY_MS)
-    return () => clearInterval(id)
-  }, [playing])
+    const ro = new ResizeObserver(() => measure());
+    leftRef.current && ro.observe(leftRef.current);
+    rightRef.current && ro.observe(rightRef.current);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [measure, leftRef, rightRef]);
 
-  const current = useMemo(() => SLIDES[index], [index])
+  return style;
+}
+
+/* --------------------------------- パーツ --------------------------------- */
+
+function LeftMenu() {
+  return (
+    <aside className="h-[336px]">
+      <div className="space-y-6">
+        <div>
+          <h1 className="mt-1 text-2xl font-semibold leading-tight">サイトタイトル</h1>
+          <p className="text-sm tracking-[0.35em] text-gray-500">PUBLISHING SERVICES</p>
+          <div className="mt-3 h-1 w-24 rounded-full bg-gradient-to-r from-emerald-600 to-orange-500" />
+        </div>
+
+        <nav aria-label="サイト内メニュー">
+          <ul className="space-y-3 text-[15px]">
+            {["トップ", "事業紹介", "会社情報", "採用情報"].map((label) => (
+              <li key={label}>
+                <a className="group inline-flex items-center gap-2 hover:text-emerald-600" href="#">
+                  <span>{label}</span>
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 rounded-full bg-emerald-600/60 transition-colors group-hover:bg-emerald-600"
+                  />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="space-x-3 pt-2">
+          <a
+            href="#"
+            className="inline-flex items-center gap-2 rounded-lg border border-emerald-600/30 px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
+          >
+            お知らせ
+          </a>
+          <a
+            href="#"
+            className="inline-flex items-center gap-2 rounded-lg border border-emerald-600/30 px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
+          >
+            お問い合わせ
+          </a>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+type ThumbsProps = {
+  slides: Slide[];
+  align: "left" | "right";
+  current: number;
+  onPick: (index: number) => void;
+  startIndex?: number; // 右帯は左帯の長さぶんオフセット
+};
+
+function Thumbs({
+  slides,
+  align,
+  current,
+  onPick,
+  startIndex = 0,
+}: ThumbsProps) {
+  const sideShift = align === "left" ? "-ml-8" : "-mr-8"; // 固定（レスポンシブ指定なし）
+  const justify = align === "left" ? "justify-end" : "justify-start";
 
   return (
-    <section className="mx-auto px-6" style={{ maxWidth: CONTAINER_MAX_W }}>
-      {/* ===== 3カラム（左サイド／中央：赤枠／右：縦コピー＋ボタン） ===== */}
-      <div
-        className="grid"
-        style={{
-          gridTemplateColumns: `${SIDE_W}px 1fr ${RIGHT_W}px`,
-          columnGap: GAP,
-        }}
-      >
-        {/* ---------- 左：縦型ヘッダー ---------- */}
-        <aside className="pt-8">
-          <div className="text-[24px] leading-[1.4] tracking-[0.02em] text-neutral-900">
-            <div>小学館</div>
-            <div>パブリッシング・</div>
-            <div>サービス</div>
-          </div>
-          <div className="mt-3 text-[11px] tracking-[0.24em] text-neutral-500">
-            SHOGAKUKAN&nbsp;P.S
-          </div>
-          <div className="relative mt-3 h-4 w-44">
-            <div className="absolute inset-x-0 top-0 h-[6px] rounded-full bg-orange-500" />
-            <div className="absolute left-1/2 top-[6px] h-[10px] w-24 -translate-x-1/2 rounded-b-[14px] bg-emerald-600" />
-          </div>
-
-          <nav aria-label="サイドナビ" className="mt-7">
-            <ul className="space-y-3 text-[15px]">
-              <li className="flex items-center justify-between">
-                <a className="hover:opacity-80" href="/">トップ</a>
-                <ArrowDot />
-              </li>
-              <li className="flex items-center justify-between">
-                <a className="hover:opacity-80" href="/business/">事業紹介</a>
-                <ArrowDot />
-              </li>
-              <li className="flex items-center justify-between">
-                <a className="hover:opacity-80" href="/company/">会社情報</a>
-                <ArrowDot />
-              </li>
-              <li className="flex items-center justify-between">
-                <a className="hover:opacity-80" href="/recruit/">採用情報</a>
-                <ArrowDot />
-              </li>
-            </ul>
-
-            <ul className="mt-6 space-y-2 text-[14px]">
-              <li className="flex items-center gap-2">
-                <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden>
-                  <rect x="1" y="1" width="16" height="12" rx="2" fill="#111" />
-                </svg>
-                <a className="underline decoration-neutral-400 underline-offset-2 hover:decoration-neutral-800" href="/news/">
-                  お知らせ
-                </a>
-              </li>
-              <li className="flex items-center gap-2">
-                <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden>
-                  <rect x="1" y="1" width="16" height="12" rx="2" fill="#111" />
-                  <path d="M2 3l7 5 7-5" stroke="#fff" strokeWidth="1.4" fill="none" />
-                </svg>
-                <a className="underline decoration-neutral-400 underline-offset-2 hover:decoration-neutral-800" href="/contact/">
-                  お問い合わせ
-                </a>
-              </li>
-            </ul>
-          </nav>
-        </aside>
-
-        {/* ---------- 中央：赤枠（上：メイン画像 / 下：サムネ行） ---------- */}
-        <div className="pt-8">
-          <div className="relative w-full rounded-[22px] bg-white ring-1 ring-neutral-200">
-            {/* 上段：メイン画像（ここにだけ縦札を重ねる） */}
-            <div className="relative overflow-hidden rounded-t-[22px]" style={{ height: HERO_IMG_H }}>
-              {SLIDES.map((s, i) => (
-                <div
-                  key={s.key}
-                  className={`absolute inset-0 transition-opacity duration-700 ${i === index ? 'opacity-100' : 'opacity-0'}`}
-                  aria-hidden={i !== index}
+    <div className={`mt-6 overflow-visible ${sideShift}`}>
+      {/* 列境界にピタッと：左=右寄せ／右=左寄せ */}
+      <div className={`flex w-full ${justify}`}>
+        {/* 常に横並び（flex）。レスポンシブ指定なし */}
+        <ul
+          className="flex w-max flex-nowrap gap-6"
+          role="listbox"
+          aria-label={align === "left" ? "スライドサムネ（左）" : "スライドサムネ（右）"}
+        >
+          {slides.map((s, idx) => {
+            const index = startIndex + idx;
+            const isActive = index === current;
+            return (
+              <li key={s.id} className="w-[112px] flex-none">
+                <button
+                  type="button"
+                  onClick={() => onPick(index)}
+                  className={`group block w-full overflow-hidden ${
+                    isActive ? "ring-2 ring-emerald-600" : ""
+                  }`}
+                  aria-current={isActive ? "true" : "false"}
+                  aria-label={`スライド ${index + 1} を表示`}
                 >
-                  <Image
-                    src="/sample.webp"
-                    alt=""
-                    fill
-                    sizes="(min-width:1280px) 820px, 100vw"
-                    priority={i === 2}
-                    className="object-cover"
-                  />
-
-                  {/* 左上：白札×2（横並び）＋ 黒ラベル（右側） */}
-                  <div className="absolute top-8 left-8 flex items-start gap-2">
-                    {/* 白札（縦書き2枚：横並び） */}
-                    <div className="flex gap-2">
-                      <span className="inline-block rounded-[4px] bg-white/95 px-2 py-1 text-[13px] leading-none text-neutral-900 shadow-sm [writing-mode:vertical-rl] [text-orientation:mixed]">
-                        {s.sub1}
-                      </span>
-                      <span className="inline-block rounded-[4px] bg-white/95 px-2 py-1 text-[13px] leading-none text-neutral-900 shadow-sm [writing-mode:vertical-rl] [text-orientation:mixed]">
-                        {s.sub2}
-                      </span>
-                    </div>
-                    {/* 黒ラベル */}
-                    <span className="inline-block rounded-[4px] bg-neutral-900 px-2 py-1 text-[18px] font-medium leading-none text-white [writing-mode:vertical-rl] [text-orientation:mixed]">
-                      {s.title}
-                    </span>
+                  <div className="relative aspect-[3/2] w-full">
+                    <Image
+                      src={s.src}
+                      alt={s.alt}
+                      fill
+                      className="object-cover"
+                      sizes="112px" // 固定
+                      priority={index < 3}
+                    />
                   </div>
-                </div>
-              ))}
-            </div>
+                </button>
+                {s.label && (
+                  <p className="mt-2 truncate text-center text-xs text-gray-600">{s.label}</p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
 
-            {/* 下段：サムネ6枚（メイン画像とは非重なり、赤枠の中） */}
-            <div
-              className="flex items-end justify-between px-6 py-5"
-              style={{ minHeight: BOTTOM_BAR_H }}
-            >
-              {/* 左3枚（伝える / 考える / 繋げる） */}
-              <div className="flex gap-4">
-                {([6, 0, 1] as const).map((idx) => (
-                  <Thumb
-                    key={SLIDES[idx].key}
-                    label={SLIDES[idx].title}
-                    active={index === idx}
-                    onClick={() => setIndex(idx)}
-                  />
-                ))}
-              </div>
-              {/* 右3枚（訪ねる / 調べる / 見出す） */}
-              <div className="flex gap-4">
-                {([3, 4, 5] as const).map((idx) => (
-                  <Thumb
-                    key={SLIDES[idx].key}
-                    label={SLIDES[idx].title}
-                    active={index === idx}
-                    onClick={() => setIndex(idx)}
-                  />
-                ))}
-              </div>
-            </div>
+/* --------------------------------- 本体 --------------------------------- */
 
-            {/* SR向け：現在スライド */}
-            <span className="sr-only" aria-live="polite">
-              {current.title}、{current.sub1}、{current.sub2}
-            </span>
+export default function HeaderHero() {
+  const [current, setCurrent] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  const half = Math.ceil(SLIDES.length / 2);
+  const leftThumbs = SLIDES.slice(0, half);
+  const rightThumbs = SLIDES.slice(half);
+
+  // 計測対象
+  const containerRef = useRef<HTMLDivElement>(null);
+  const leftStackRef = useRef<HTMLDivElement>(null);  // ① + ④
+  const rightStackRef = useRef<HTMLDivElement>(null); // ③ + ⑤
+
+  const centerStyle = useCenteredStyle(leftStackRef, rightStackRef, containerRef);
+
+  // 自動再生（フェード）
+  useAutoAdvance(!paused, SLIDES.length, setCurrent, 6000);
+
+  // ← → でスライド変更
+  const onKey = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key === "ArrowRight") setCurrent((i) => (i + 1) % SLIDES.length);
+    if (e.key === "ArrowLeft") setCurrent((i) => (i - 1 + SLIDES.length) % SLIDES.length);
+  };
+
+  return (
+    <section
+      aria-label="ヘッダーヒーロー"
+      className="mx-auto max-w-[1100px] px-4 py-12"
+    >
+      <div
+        ref={containerRef}
+        className="grid grid-cols-12 gap-8"
+        tabIndex={0}
+        onKeyDown={onKey}
+        aria-describedby="hero-status"
+      >
+        {/* ①+④ 左スタック */}
+        <div className="col-span-3">
+          <div ref={leftStackRef} className="flex min-w-0 flex-col gap-6">
+            <LeftMenu />
+            <Thumbs
+              slides={leftThumbs}
+              align="left"
+              current={current}
+              onPick={setCurrent}
+              startIndex={0}
+            />
           </div>
         </div>
 
-        {/* ---------- 右：縦コピー（上）＋ 再生/一時停止（下） ── 赤枠の外 ---------- */}
-        <div className="relative pt-8" style={{ minHeight: HERO_TOTAL_H }}>
-          <div className="text-[44px] font-medium leading-[1.25] tracking-[0.04em] text-neutral-900 [writing-mode:vertical-rl] [text-orientation:mixed]">
-            <span>人と本</span>
-            <span className="mt-4 inline-block">出逢う瞬間を</span>
-            <span className="mt-4 inline-block text-emerald-600">共に創る。</span>
+        {/* ② 中央カラム：高さ=①+④、縦位置=左右の中点 */}
+        <div className="col-span-6">
+          <div className="relative w-full overflow-hidden" style={centerStyle}>
+            {SLIDES.map((s, i) => {
+              const active = current === i;
+              return (
+                <div
+                  key={s.id}
+                  className={`absolute inset-0 transition-opacity duration-700 ${
+                    active ? "opacity-100" : "opacity-0"
+                  }`}
+                  aria-hidden={active ? "false" : "true"}
+                >
+                  <Image
+                    src={s.src}
+                    alt={s.alt}
+                    fill
+                    sizes="600px" // 固定（ブレークポイント条件なし）
+                    className="object-cover"
+                    priority={i === 0}
+                  />
+                  {/* 任意ラベル */}
+                  <div className="absolute left-3 top-3 rounded bg-white/85 px-2 py-1 text-xs text-gray-700">
+                    新たな発見のために
+                  </div>
+                </div>
+              );
+            })}
           </div>
+          <p id="hero-status" className="sr-only" aria-live="polite">
+            現在のスライドは {current + 1} / {SLIDES.length} 枚目です。
+          </p>
+        </div>
 
-          <div className="absolute bottom-5 right-0">
-            <button
-              onClick={() => setPlaying((p) => !p)}
-              className="flex items-center gap-2 rounded-md bg-white px-3 py-2 text-[13px] shadow ring-1 ring-neutral-200 hover:bg-white/90"
-              aria-pressed={!playing}
-            >
-              <span className="inline-block w-3 text-center">{playing ? '‖' : '▶'}</span>
-              <span>{playing ? '一時停止' : '再生'}</span>
-            </button>
+        {/* ③+⑤ 右スタック */}
+        <div className="col-span-3">
+          <div ref={rightStackRef} className="flex min-w-0 flex-col gap-4">
+            {/* 縦書きキャッチ（③） */}
+            <div className="flex items-center justify-center h-[336px]">
+              <p className="[writing-mode:vertical-rl] [text-orientation:mixed] text-4xl leading-relaxed">
+                人と本
+                <br />
+                出逢う瞬間を
+                <br />
+                共に創る。
+              </p>
+            </div>
+
+            {/* 一時停止トグル（右サムネの上） */}
+            <div className="flex items-center justify-end gap-3 pr-1">
+              <button
+                type="button"
+                onClick={() => setPaused((p) => !p)}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100"
+                aria-pressed={paused}
+                aria-label={paused ? "自動再生を再開" : "自動再生を一時停止"}
+                title={paused ? "再生" : "一時停止"}
+              >
+                <span className="text-sm">{paused ? "▶ 再生" : "⏸ 一時停止"}</span>
+              </button>
+            </div>
+
+            {/* ⑤ サムネ（右） */}
+            <Thumbs
+              slides={rightThumbs}
+              align="right"
+              current={current}
+              onPick={setCurrent}
+              startIndex={leftThumbs.length}
+            />
           </div>
         </div>
       </div>
     </section>
-  )
+  );
 }
